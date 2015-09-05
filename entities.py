@@ -73,7 +73,7 @@ def main():
     result = pool.map(find_entities, df.raw_text.tolist())
     pool.close()
 
-    df['entities_stanford_alpha'] = result
+    df['entities'] = result
     df.to_pickle('entities_df')
 
 
