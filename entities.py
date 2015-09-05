@@ -5,17 +5,10 @@ from nltk.tag.stanford import StanfordNERTagger
 from nltk import pos_tag
 from nltk.chunk import conlltags2tree
 from nltk.tree import Tree
-import jellyfish
+from collections import Counter
 
 
 st = StanfordNERTagger('/Users/amangum/stanford-ner/classifiers/english.all.3class.distsim.crf.ser.gz', '/Users/amangum/stanford-ner/stanford-ner.jar')
-
-
-def remove_non_ascii(s): return "".join(i for i in s if ord(i)<128)
-
-
-def fuzzy_match(s1, s2, max_dist=.8):
-    return jellyfish.jaro_distance(s1, s2) >= max_dist
 
 
 def stanfordNE2BIO(tagged_sent):
@@ -52,10 +45,9 @@ def stanfordNE2tree(ne_tagged_sent):
 def find_entities(text):
     # stanford tagger takes 2.45 seconds vs 2.38 seconds for standard tagger
 
-    tokens = [w for w in nltk.word_tokenize(text) if w.isalpha()]
-    # tokens = [w for w in nltk.word_tokenize(text) if len(w) > 1 ] #removes punctuation without removing words that happen to have punctuation in them
+    tokens = nltk.word_tokenize(text)
+    # tokens = [w for w in nltk.word_tokenize(text) if w.isalpha()]
     # tokens = nltk.word_tokenize(unidecode(text).translate(None, string.punctuation))
-    # tokens = nltk.word_tokenize(text)
     # tokens = text.split()
 
     places = []
@@ -66,13 +58,12 @@ def find_entities(text):
     for ne in ne_tree:
         if isinstance(ne, Tree): # If subtree is a noun chunk, i.e. NE != "O"
             if ne.label() in ['LOCATION', 'PERSON', 'ORGANIZATION']:
-            # if ne.label() in ['LOCATION']:
                 ne_label = ne.label()
                 ne_string = u' '.join([token for token, pos in ne.leaves()])
                 places.append([ne_string, ne_label])
-                # places.append(ne_string)
 
-    return places
+    c = Counter((entity, label) for entity, label in places)
+    return {(entity, label, count) for (entity, label), count in c.items()}
 
 
 def main():
