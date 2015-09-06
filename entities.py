@@ -5,7 +5,7 @@ from nltk.tag.stanford import StanfordNERTagger
 from nltk import pos_tag
 from nltk.chunk import conlltags2tree
 from nltk.tree import Tree
-from collections import Counter
+# from collections import Counter
 
 
 st = StanfordNERTagger('/Users/amangum/stanford-ner/classifiers/english.all.3class.distsim.crf.ser.gz', '/Users/amangum/stanford-ner/stanford-ner.jar')
@@ -60,10 +60,11 @@ def find_entities(text):
             if ne.label() in ['LOCATION', 'PERSON', 'ORGANIZATION']:
                 ne_label = ne.label()
                 ne_string = u' '.join([token for token, pos in ne.leaves()])
-                places.append([ne_string, ne_label])
+                places.append((ne_string, ne_label))
 
-    c = Counter((entity, label) for entity, label in places)
-    return {(entity, label, count) for (entity, label), count in c.items()}
+    # c = Counter((entity, label) for entity, label in places)
+    # return {(entity, label, count) for (entity, label), count in c.items()}
+    return places
 
 
 def main():
