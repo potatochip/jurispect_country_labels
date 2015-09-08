@@ -16,27 +16,6 @@ from nltk import bigrams
 from nltk import trigrams
 
 
-country_names = [i.name for i in pycountry.countries]
-country_names = [standardize_country_name(i).lower() for i in country_names]
-
-subdivision_df = pd.DataFrame.from_csv('GeoLite2-City-Locations.csv', index_col=None, encoding='utf8').dropna(subset=['country_name'])
-
-s1 = subdivision_df[['country_name', 'subdivision_name']].dropna().rename(columns={'subdivision_name':'subdivision'})
-s1['type'] = 'subdivision'
-s2 = subdivision_df[['country_name', 'subdivision_iso_code']].dropna().rename(columns={'subdivision_iso_code':'subdivision'})
-s2['type'] = 'subdivision_code'
-s3 = subdivision_df[['country_name', 'city_name']].dropna().rename(columns={'city_name':'subdivision'})
-s3['type'] = 'city'
-s4 = subdivision_df[['country_name', 'country_iso_code']].dropna().rename(columns={'country_iso_code':'subdivision'})
-s4['type'] = 'country_code'
-
-# add countries to 'everything'
-s5 = pd.DataFrame([subdivision_df.country_name.unique()]*2).T
-s5.columns = ['country_name','subdivision']
-s5['type'] = 'country'
-
-almost_everything = pd.concat([s1,s2,s3,s4,s5], ignore_index=True).drop_duplicates()
-
 def standardize_country_name(name):
     try:
         name = unicode(name, 'utf8')
@@ -254,8 +233,8 @@ def update_countries_with_regions(entities, countries, text):
 
 
 def parse_countries(row):
-    countries = get_countries(row.entities)
-    countries = update_countries_with_regions(row.entities, countries, row.raw_text)
+    countries = get_countries(row[1].entities)
+    countries = update_countries_with_regions(row[1].entities, countries, row[1].raw_text)
     return countries
 
 
@@ -271,4 +250,26 @@ def main():
 
 
 if __name__ == '__main__':
+
+    country_names = [i.name for i in pycountry.countries]
+    country_names = [standardize_country_name(i).lower() for i in country_names]
+
+    subdivision_df = pd.DataFrame.from_csv('GeoLite2-City-Locations.csv', index_col=None, encoding='utf8').dropna(subset=['country_name'])
+
+    s1 = subdivision_df[['country_name', 'subdivision_name']].dropna().rename(columns={'subdivision_name':'subdivision'})
+    s1['type'] = 'subdivision'
+    s2 = subdivision_df[['country_name', 'subdivision_iso_code']].dropna().rename(columns={'subdivision_iso_code':'subdivision'})
+    s2['type'] = 'subdivision_code'
+    s3 = subdivision_df[['country_name', 'city_name']].dropna().rename(columns={'city_name':'subdivision'})
+    s3['type'] = 'city'
+    s4 = subdivision_df[['country_name', 'country_iso_code']].dropna().rename(columns={'country_iso_code':'subdivision'})
+    s4['type'] = 'country_code'
+
+    # add countries to 'everything'
+    s5 = pd.DataFrame([subdivision_df.country_name.unique()]*2).T
+    s5.columns = ['country_name','subdivision']
+    s5['type'] = 'country'
+
+    almost_everything = pd.concat([s1,s2,s3,s4,s5], ignore_index=True).drop_duplicates()
+
     main()
