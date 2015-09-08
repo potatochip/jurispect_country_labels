@@ -1,3 +1,7 @@
+'''
+grabs entities from raw text
+'''
+
 import pandas as pd
 from multiprocessing import Pool
 import nltk
