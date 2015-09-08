@@ -12,8 +12,7 @@ import csv
 from collections import Counter
 import re
 import nltk
-from nltk import bigrams
-from nltk import trigrams
+from nltk import bigrams, trigrams
 
 
 def standardize_country_name(name):
@@ -25,11 +24,28 @@ def standardize_country_name(name):
     return name
 
 
-def title_except(s, exceptions=['a', 'an', 'of', 'the', 'is']):
-    word_list = re.split(' ', s)       #re.split behaves as expected
-    final = [word_list[0].capitalize()]
-    for word in word_list[1:]:
-        final.append(word in exceptions and word or word.capitalize())
+def title_except(s, exceptions=['a', 'an', 'the', 'and', 'but', 'or', 'for' 'nor', 'on', 'at', 'to', 'from', 'by', 'of']):
+    word_list = re.split(' ', s)
+    final = []
+    for ix, word in enumerate(word_list):
+        if word.count('.') > 1:
+            # fix abbreviations correctly
+            word = word.upper()
+        elif '-' in word:
+            location = word.find('-')
+            word = word.capitalize()
+            word = word.replace(word[location+1], word[location+1].upper())
+        elif word[0] in ['(', '[']:
+            word = word.replace(word[1], word[1].upper())
+        elif ix == 0:
+            word = word.capitalize()
+        elif word in exceptions:
+            word = word.lower()
+        elif "d'ivoire" in word.lower():
+            word = "d'Ivoire"
+        else:
+            word = word.capitalize()
+        final.append(word)
     return " ".join(final)
 
 
@@ -48,10 +64,10 @@ def correct_country_mispelling(s):
 
 def matching_countries(entity):
     # further correction for misspellings
-    matching_countries = difflib.get_close_matches(entity, country_names, cutoff=0.8,)
-    if matching_countries:
-        confidence = difflib.SequenceMatcher(None, matching_countries[0], entity).ratio()
-        return (matching_countries[0], confidence)
+    matched_countries = difflib.get_close_matches(entity, country_names, cutoff=0.8,)
+    if matched_countries:
+        confidence = difflib.SequenceMatcher(None, matched_countries[0], entity).ratio()
+        return (matched_countries[0], confidence)
 
 
 def get_countries(places, spellcheck=False):
@@ -59,7 +75,7 @@ def get_countries(places, spellcheck=False):
     # likelihood of official government documents being spelled incorrectly is low
     countries = []
     for place, label in places:
-        if label == 'LOCATION':
+        if label == ['LOCATION', 'PERSON', 'ORGANIZATION']:
             place = correct_country_mispelling(place)
             if spellcheck:
                 match = matching_countries(place.lower())
@@ -81,6 +97,7 @@ def remove_non_ascii(s): return "".join(i for i in s if ord(i)<128)
 
 def fuzzy_match(s1, s2, max_dist=.8):
     return jellyfish.jaro_distance(s1, s2) >= max_dist
+
 
 def adjust_probabilities(old_probability, possible_countries):
     if len(set(count for _, count in possible_countries)) <= 1:
