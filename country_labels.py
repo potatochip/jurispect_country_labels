@@ -75,7 +75,7 @@ def get_countries(places, spellcheck=False):
     # likelihood of official government documents being spelled incorrectly is low
     countries = []
     for place, label in places:
-        if label == ['LOCATION', 'PERSON', 'ORGANIZATION']:
+        if label in ['LOCATION', 'PERSON', 'ORGANIZATION']:
             place = correct_country_mispelling(place)
             if spellcheck:
                 match = matching_countries(place.lower())
