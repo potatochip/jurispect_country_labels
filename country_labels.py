@@ -209,6 +209,8 @@ def independent_either_probability(oldp, newp):
 
 def update_countries_with_regions(entities, countries, text):
     # adds countries derived from regions to country list
+    ambiguous_locations = {}
+
     subs = pd.DataFrame()
     for entity in {i[0] for i in entities if i[1]=='LOCATION'}:
         a = almost_everything[almost_everything.subdivision == entity]
@@ -238,6 +240,7 @@ def update_countries_with_regions(entities, countries, text):
                 # multiple countries exist for a single subdivision
                 possible_countries = no_dupes[no_dupes.subdivision == place].country_name.tolist()
                 new_probabilities = context_adjustment(place, possible_countries, probability, text)
+                ambiguous_locations[place] = {'possible_countries': possible_countries}
                 for country in possible_countries:
                     if country in countries:
                         priors = countries[country]
@@ -246,13 +249,14 @@ def update_countries_with_regions(entities, countries, text):
                         countries[country] = {'count': new_count, 'probability': new_probability}
                     else:
                         countries[country] = {'count': new_probabilities[country]['count'], 'probability': new_probabilities[country]['probability']}
-    return countries
+    return countries, ambiguous_locations
 
 
 def parse_countries(row):
     countries = get_countries(row[1].entities)
-    countries = update_countries_with_regions(row[1].entities, countries, row[1].raw_text)
-    return countries
+    text = row[1].title + '\n' + row[1].toc_subject + '\n' + ' '.join(row[1].topics) + '\n' + row[1].raw_text
+    countries, ambiguous_locations = update_countries_with_regions(row[1].entities, countries, text)
+    return (countries, ambiguous_locations)
 
 
 def main():
@@ -262,7 +266,9 @@ def main():
     result = pool.map(parse_countries, list(df.iterrows()))
     pool.close()
 
-    df['countries'] = result
+    unwind = zip(*result)
+    df['countries'] = unwind[0]
+    df['ambiguous_locations'] = unwind[1]
     df.to_pickle('labels_df')
 
 

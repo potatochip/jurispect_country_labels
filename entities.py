@@ -74,8 +74,11 @@ def find_entities(text):
 def main():
     df = pd.read_pickle('docs_df')
 
+    df[['title', 'toc_subject']] = df[['title', 'toc_subject']].fillna('')
+    documents = df.title + '\n' + df.toc_subject + '\n' + df.topics.apply(lambda x: ' '.join(x)) + '\n' + df.raw_text
+
     pool = Pool()
-    result = pool.map(find_entities, df.raw_text.tolist())
+    result = pool.map(find_entities, documents.tolist())
     pool.close()
 
     df['entities'] = result
