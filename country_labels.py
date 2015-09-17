@@ -10,9 +10,10 @@ import jellyfish
 import difflib
 import csv
 from collections import Counter
-import re
 import nltk
 from nltk import bigrams, trigrams
+import textual
+import probabilities
 
 
 def standardize_country_name(name):
@@ -24,40 +25,15 @@ def standardize_country_name(name):
     return name
 
 
-def title_except(s, exceptions=['a', 'an', 'the', 'and', 'but', 'or', 'for' 'nor', 'on', 'at', 'to', 'from', 'by', 'of']):
-    word_list = re.split(' ', s)
-    final = []
-    for ix, word in enumerate(word_list):
-        if word.count('.') > 1:
-            # fix abbreviations correctly
-            word = word.upper()
-        elif '-' in word:
-            location = word.find('-')
-            word = word.capitalize()
-            word = word.replace(word[location+1], word[location+1].upper())
-        elif word[0] in ['(', '[']:
-            word = word.replace(word[1], word[1].upper())
-        elif ix == 0:
-            word = word.capitalize()
-        elif word in exceptions:
-            word = word.lower()
-        elif "d'ivoire" in word.lower():
-            word = "d'Ivoire"
-        else:
-            word = word.capitalize()
-        final.append(word)
-    return " ".join(final)
-
-
 def correct_country_mispelling(s):
-    with open("ISO3166ErrorDictionary.csv", "rb") as info:
+    with open("/data/ISO3166ErrorDictionary.csv", "rb") as info:
         reader = csv.reader(info)
         for row in reader:
             if s.lower() == unicode(row[0],'utf8').lower():
                 return unicode(row[2], 'utf8')
             if unidecode(s).lower() == unidecode(unicode(row[0],'utf8')).lower():
                 return unicode(row[2], 'utf8')
-            if s.lower() == remove_non_ascii(row[0]).lower():
+            if s.lower() == textual.remove_non_ascii(row[0]).lower():
                 return unicode(row[2], 'utf8')
     return s
 
@@ -83,20 +59,13 @@ def get_countries(places, spellcheck=False):
                     countries.append((place, match[1]))
             else:
                 if place.lower() in country_names:
-                    countries.append((title_except(place), 1.0))
+                    countries.append((textual.titlecase(place), 1.0))
     c = set(Counter(name for name, _ in countries).iteritems())
     c_dict = {}
     for country, count in c:
         # gets the probability from before the counter
         c_dict.update({country: {'probability': probability, 'count': count} for name, probability in sorted(countries) if name in country})
     return c_dict
-
-
-def remove_non_ascii(s): return "".join(i for i in s if ord(i)<128)
-
-
-def fuzzy_match(s1, s2, max_dist=.8):
-    return jellyfish.jaro_distance(s1, s2) >= max_dist
 
 
 def adjust_probabilities(old_probability, possible_countries):
@@ -119,22 +88,6 @@ def adjust_probabilities(old_probability, possible_countries):
     return list_
 
 
-def remove_word(s, word):
-    remove = word
-    regex = re.compile(r'\b('+remove+r')\b', flags=re.IGNORECASE)
-    out = regex.sub("", s)
-    return out
-
-
-def find_all(a_str, sub):
-    start = 0
-    while True:
-        start = a_str.find(sub, start)
-        if start == -1: return
-        yield start
-        start += len(sub) # use start += 1 to find overlapping matches
-
-
 def context_adjustment(place, possible_countries, probability, text):
     # get contextual windows revolving around ambiguous place name
 #     print('{} could be in {} with a probability of {} for each'.format(place, possible_countries, probability))
@@ -142,7 +95,7 @@ def context_adjustment(place, possible_countries, probability, text):
     bottom = lambda x: x-window if x-window > 0 else 0
     top = lambda x: x+window if x+window < len(text) else len(text)
 #     print indices
-    indices = list(find_all(text, place))
+    indices = list(textual.find_all(text, place))
     contexts = [text[bottom(i):top(i)] for i in indices]
 #     print('{} has surrounding contexts of {}'.format(place, contexts))
 #     print
@@ -150,7 +103,7 @@ def context_adjustment(place, possible_countries, probability, text):
     while not new_probabilities:
         # waits until any contextual clues are acquired rather than getting every possible contextual clue which can lead to false positives when get multiple copies of same error
         for context in contexts:
-            context = remove_word(context, place)
+            context = textual.remove_word(context, place)
             tokens = nltk.word_tokenize(context)
             codes = [t for t in tokens if t==t.upper() and t.isalpha()]
 
@@ -161,7 +114,7 @@ def context_adjustment(place, possible_countries, probability, text):
             tokens = tokens + [' '.join(t) for t in bi_tokens] + [' '.join(t) for t in tri_tokens]
 
             # fix capitalization of state codes
-            tokens = [(lambda x: x.upper() if x.upper() in codes else title_except(x))(t) for t in tokens]
+            tokens = [(lambda x: x.upper() if x.upper() in codes else textual.titlecase(x))(t) for t in tokens]
 #             print('Recognized locations in the context are {}'.format(filter(lambda x: x in [i for i in almost_everything.subdivision.tolist()], tokens)))
             context_countries = []
 
@@ -193,18 +146,12 @@ def context_adjustment(place, possible_countries, probability, text):
             probability = probs.pop(0)
             if probs:
                 for i in probs:
-                    probability = independent_either_probability(probability, i)
+                    probability = probabilities.independent_either_probability(probability, i)
             dict_[country] = {'count': count, 'probability': probability}
     else:
         for country in possible_countries:
             dict_[country] = {'count': 1, 'probability': probability}
     return dict_
-
-
-def independent_either_probability(oldp, newp):
-    probability_non_occurrence = (1-oldp) * (1-newp)
-    new_probability = 1 - probability_non_occurrence
-    return new_probability
 
 
 def update_countries_with_regions(entities, countries, text):
@@ -232,7 +179,7 @@ def update_countries_with_regions(entities, countries, text):
                 if country in countries:
                     priors = countries[country]
                     new_count = priors['count'] + len(possible_countries)
-                    new_probability = independent_either_probability(priors['probability'], probability)
+                    new_probability = probabilities.independent_either_probability(priors['probability'], probability)
                     countries[country] = {'count': new_count, 'probability': new_probability}
                 else:
                     countries[country] = {'count': len(possible_countries), 'probability': probability}
@@ -245,7 +192,7 @@ def update_countries_with_regions(entities, countries, text):
                     if country in countries:
                         priors = countries[country]
                         new_count = priors['count'] + new_probabilities[country]['count']
-                        new_probability = independent_either_probability(priors['probability'], new_probabilities[country]['probability'])
+                        new_probability = probabilities.independent_either_probability(priors['probability'], new_probabilities[country]['probability'])
                         countries[country] = {'count': new_count, 'probability': new_probability}
                     else:
                         countries[country] = {'count': new_probabilities[country]['count'], 'probability': new_probabilities[country]['probability']}
@@ -277,7 +224,7 @@ if __name__ == '__main__':
     country_names = [i.name for i in pycountry.countries]
     country_names = [standardize_country_name(i).lower() for i in country_names]
 
-    subdivision_df = pd.DataFrame.from_csv('GeoLite2-City-Locations.csv', index_col=None, encoding='utf8').dropna(subset=['country_name'])
+    subdivision_df = pd.DataFrame.from_csv('data/GeoLite2-City-Locations.csv', index_col=None, encoding='utf8').dropna(subset=['country_name'])
 
     s1 = subdivision_df[['country_name', 'subdivision_name']].dropna().rename(columns={'subdivision_name':'subdivision'})
     s1['type'] = 'subdivision'

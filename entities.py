@@ -1,5 +1,17 @@
 '''
-grabs entities from raw text
+grabs stanford named entities from raw text
+
+3 class:	Location, Person, Organization
+4 class:	Location, Person, Organization, Misc
+7 class:	Time, Location, Organization, Person, Money, Percent, Date
+These models each use distributional similarity features, which provide some performance gain at the cost of increasing their size and runtime.
+
+The following other models are available at http://nlp.stanford.edu/software/CRF-NER.shtml
+Models with no distsim features
+Models which ignore capitalization
+German NER
+Spanish CoreNLP models
+Chinese NER
 '''
 
 import pandas as pd
@@ -9,7 +21,6 @@ from nltk.tag.stanford import StanfordNERTagger
 from nltk import pos_tag
 from nltk.chunk import conlltags2tree
 from nltk.tree import Tree
-# from collections import Counter
 
 
 st = StanfordNERTagger('/Users/amangum/stanford-ner/classifiers/english.all.3class.distsim.crf.ser.gz', '/Users/amangum/stanford-ner/stanford-ner.jar')
@@ -47,16 +58,10 @@ def stanfordNE2tree(ne_tagged_sent):
 
 
 def find_entities(text):
-    # stanford tagger takes 2.45 seconds vs 2.38 seconds for standard tagger
-
     tokens = nltk.word_tokenize(text)
-    # tokens = [w for w in nltk.word_tokenize(text) if w.isalpha()]
-    # tokens = nltk.word_tokenize(unidecode(text).translate(None, string.punctuation))
-    # tokens = text.split()
 
     places = []
 
-    # stanford tagger
     ne_tagged_sent = st.tag(tokens)
     ne_tree = stanfordNE2tree(ne_tagged_sent)
     for ne in ne_tree:
@@ -66,9 +71,14 @@ def find_entities(text):
                 ne_string = u' '.join([token for token, pos in ne.leaves()])
                 places.append((ne_string, ne_label))
 
-    # c = Counter((entity, label) for entity, label in places)
-    # return {(entity, label, count) for (entity, label), count in c.items()}
     return places
+
+
+def find_entities_pool(documents):
+    pool = Pool()
+    result = pool.map(find_entities, documents)
+    pool.close()
+    return result
 
 
 def main():
